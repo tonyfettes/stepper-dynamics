@@ -4,9 +4,11 @@ open import Data.Product using (_,_; _×_; proj₁; proj₂)
 open import Data.Sum using (_⊎_; inj₁; inj₂)
 open import Data.Empty using (⊥-elim)
 open import Relation.Nullary using (Dec; yes; no; ¬_; _×-dec_)
+open import Data.List using (List; []; _∷_; _++_)
+open import Data.List.Membership.Propositional using (_∈_)
 import Relation.Nullary.Decidable as Dec
 import Relation.Binary.PropositionalEquality as Eq
-open Eq using (_≡_; refl; cong; _≢_)
+open Eq using (_≡_; refl; cong; _≢_; cong₂)
 open import Function using (_↔_)
 
 data Act : Set where
@@ -47,6 +49,7 @@ data Pat where
   $e   : Pat
   $v   : Pat
   `_   : Id → Pat
+  !_   : String → Pat
   ƛ_   : Exp → Pat
   _`·_ : Pat → Pat → Pat
   #_   : ℕ → Pat
@@ -58,6 +61,7 @@ _≟-exp_ : (e₁ : Exp) → (e₂ : Exp) → Dec (e₁ ≡ e₂)
 $e ≟-pat $e = yes refl
 $e ≟-pat $v = no λ ()
 $e ≟-pat (` x) = no (λ ())
+$e ≟-pat (! x) = no (λ ())
 $e ≟-pat (ƛ x) = no (λ ())
 $e ≟-pat (p₂ `· p₃) = no (λ ())
 $e ≟-pat (# x) = no (λ ())
@@ -65,6 +69,7 @@ $e ≟-pat (p₂ `+ p₃) = no (λ ())
 $v ≟-pat $e = no (λ ())
 $v ≟-pat $v = yes refl
 $v ≟-pat (` x) = no (λ ())
+$v ≟-pat (! x) = no (λ ())
 $v ≟-pat (ƛ x) = no (λ ())
 $v ≟-pat (p₂ `· p₃) = no (λ ())
 $v ≟-pat (# x) = no (λ ())
@@ -74,13 +79,25 @@ $v ≟-pat (p₂ `+ p₃) = no (λ ())
 (` x) ≟-pat (` y) with x Data.Nat.≟ y
 (` x) ≟-pat (` y) | yes refl = yes refl
 (` x) ≟-pat (` y) | no ¬x≟y = no (λ { refl → ¬x≟y refl })
+(` x) ≟-pat (! y) = no λ ()
 (` x) ≟-pat (ƛ x₁) = no (λ ())
 (` x) ≟-pat (p₂ `· p₃) = no (λ ())
 (` x) ≟-pat (# x₁) = no (λ ())
 (` x) ≟-pat (p₂ `+ p₃) = no (λ ())
+(! x) ≟-pat $e = no (λ ())
+(! x) ≟-pat $v = no (λ ())
+(! x) ≟-pat (` x₁) = no (λ ())
+(! x) ≟-pat (! y) with (x Data.String.≟ y)
+... | yes refl = yes refl
+... | no x≢y = no λ { refl → x≢y refl }
+(! x) ≟-pat (ƛ x₁) = no (λ ())
+(! x) ≟-pat (p `· p₁) = no (λ ())
+(! x) ≟-pat (# x₁) = no (λ ())
+(! x) ≟-pat (p `+ p₁) = no (λ ())
 (ƛ x) ≟-pat $e = no (λ ())
 (ƛ x) ≟-pat $v = no (λ ())
 (ƛ x) ≟-pat (` x₁) = no (λ ())
+(ƛ x) ≟-pat (! y) = no λ ()
 (ƛ x) ≟-pat (ƛ y) with x ≟-exp y
 ...               | yes refl = yes refl
 ...               | no ¬x≟y  = no (λ { refl → ¬x≟y refl })
@@ -90,6 +107,7 @@ $v ≟-pat (p₂ `+ p₃) = no (λ ())
 (p₁ `· p₃) ≟-pat $e = no (λ ())
 (p₁ `· p₃) ≟-pat $v = no (λ ())
 (p₁ `· p₃) ≟-pat (` x) = no (λ ())
+(p₁ `· p₃) ≟-pat (! x) = no (λ ())
 (p₁ `· p₃) ≟-pat (ƛ x) = no (λ ())
 (p₁ `· p₃) ≟-pat (p₂ `· p₄) with (p₁ ≟-pat p₂) with (p₃ ≟-pat p₄)
 ... | yes refl | yes refl = yes refl
@@ -101,6 +119,7 @@ $v ≟-pat (p₂ `+ p₃) = no (λ ())
 (# x) ≟-pat $e = no (λ ())
 (# x) ≟-pat $v = no (λ ())
 (# x) ≟-pat (` x₁) = no (λ ())
+(# x) ≟-pat (! x₁) = no (λ ())
 (# x) ≟-pat (ƛ x₁) = no (λ ())
 (# x) ≟-pat (p₂ `· p₃) = no (λ ())
 (# x) ≟-pat (# y) with (x Data.Nat.≟ y)
@@ -110,6 +129,7 @@ $v ≟-pat (p₂ `+ p₃) = no (λ ())
 (p₁ `+ p₃) ≟-pat $e = no (λ ())
 (p₁ `+ p₃) ≟-pat $v = no (λ ())
 (p₁ `+ p₃) ≟-pat (` x) = no (λ ())
+(p₁ `+ p₃) ≟-pat (! x) = no (λ ())
 (p₁ `+ p₃) ≟-pat (ƛ x) = no (λ ())
 (p₁ `+ p₃) ≟-pat (p₂ `· p₄) = no (λ ())
 (p₁ `+ p₃) ≟-pat (# x) = no (λ ())
@@ -120,24 +140,37 @@ $v ≟-pat (p₂ `+ p₃) = no (λ ())
 ... | no ¬1≟2  | no _     = no (λ { refl → ¬1≟2 refl })
 
 data Exp where
-  `_    : Id → Exp
+  `_    : (i : Id) → Exp
+  !_    : (x : String) → Exp
   ƛ_    : Exp → Exp
   _`·_  : Exp → Exp → Exp
   #_    : ℕ → Exp
   _`+_  : Exp → Exp → Exp
-  φ_⇒_ : Pat × Act × Gas → Exp → Exp
-  δ_⇒_ : Act × Gas × ℕ   → Exp → Exp
+  φ_⇒_ : (f : Pat × Act × Gas) → Exp → Exp
+  δ_⇒_ : (r : Act × Gas × ℕ)   → Exp → Exp
 
 (` x) ≟-exp (` y) with (x Data.Nat.≟ y)
 ... | yes refl = yes refl
 ... | no x≢y = no λ { refl → x≢y refl }
+(` x) ≟-exp (! y) = no (λ ())
 (` x) ≟-exp (ƛ e₂) = no (λ ())
 (` x) ≟-exp (e₂ `· e₃) = no (λ ())
 (` x) ≟-exp (# x₁) = no (λ ())
 (` x) ≟-exp (e₂ `+ e₃) = no (λ ())
 (` x) ≟-exp (φ x₁ ⇒ e₂) = no (λ ())
 (` x) ≟-exp (δ x₁ ⇒ e₂) = no (λ ())
+(! x) ≟-exp (` x₁) = no (λ ())
+(! x) ≟-exp (! y) with (x Data.String.≟ y)
+... | yes refl = yes refl
+... | no x≢y = no λ { refl → x≢y refl }
+(! x) ≟-exp (ƛ e) = no (λ ())
+(! x) ≟-exp (e `· e₁) = no (λ ())
+(! x) ≟-exp (# x₁) = no (λ ())
+(! x) ≟-exp (e `+ e₁) = no (λ ())
+(! x) ≟-exp (φ x₁ ⇒ e) = no (λ ())
+(! x) ≟-exp (δ x₁ ⇒ e) = no (λ ())
 (ƛ e₁) ≟-exp (` x) = no (λ ())
+(ƛ e₁) ≟-exp (! x) = no (λ ())
 (ƛ e₁) ≟-exp (ƛ e₂) with (e₁ ≟-exp e₂)
 ... | yes refl = yes refl
 ... | no e₁≢e₂ = no λ { refl → e₁≢e₂ refl }
@@ -147,6 +180,7 @@ data Exp where
 (ƛ e₁) ≟-exp (φ x ⇒ e₂) = no (λ ())
 (ƛ e₁) ≟-exp (δ x ⇒ e₂) = no (λ ())
 (e₁ `· e₃) ≟-exp (` x) = no (λ ())
+(e₁ `· e₃) ≟-exp (! x) = no (λ ())
 (e₁ `· e₃) ≟-exp (ƛ e₂) = no (λ ())
 (e₁ `· e₃) ≟-exp (e₂ `· e₄) with (e₁ ≟-exp e₂) ×-dec (e₃ ≟-exp e₄)
 ... | yes (refl , refl) = yes refl
@@ -156,6 +190,7 @@ data Exp where
 (e₁ `· e₃) ≟-exp (φ x ⇒ e₂) = no (λ ())
 (e₁ `· e₃) ≟-exp (δ x ⇒ e₂) = no (λ ())
 (# x) ≟-exp (` x₁) = no (λ ())
+(# x) ≟-exp (! x₁) = no (λ ())
 (# x) ≟-exp (ƛ e₂) = no (λ ())
 (# x) ≟-exp (e₂ `· e₃) = no (λ ())
 (# x) ≟-exp (# y) with (x Data.Nat.≟ y)
@@ -165,6 +200,7 @@ data Exp where
 (# x) ≟-exp (φ x₁ ⇒ e₂) = no (λ ())
 (# x) ≟-exp (δ x₁ ⇒ e₂) = no (λ ())
 (e₁ `+ e₃) ≟-exp (` x) = no (λ ())
+(e₁ `+ e₃) ≟-exp (! x) = no (λ ())
 (e₁ `+ e₃) ≟-exp (ƛ e₂) = no (λ ())
 (e₁ `+ e₃) ≟-exp (e₂ `· e₄) = no (λ ())
 (e₁ `+ e₃) ≟-exp (# x) = no (λ ())
@@ -174,6 +210,7 @@ data Exp where
 (e₁ `+ e₃) ≟-exp (φ x ⇒ e₂) = no (λ ())
 (e₁ `+ e₃) ≟-exp (δ x ⇒ e₂) = no (λ ())
 (φ x ⇒ e₁) ≟-exp (` x₁) = no (λ ())
+(φ x ⇒ e₁) ≟-exp (! x₁) = no (λ ())
 (φ x ⇒ e₁) ≟-exp (ƛ e₂) = no (λ ())
 (φ x ⇒ e₁) ≟-exp (e₂ `· e₃) = no (λ ())
 (φ x ⇒ e₁) ≟-exp (# x₁) = no (λ ())
@@ -184,6 +221,7 @@ data Exp where
 ... | no page₁≢page₂ = no (λ { refl → page₁≢page₂ (refl , refl , refl , refl) })
 (φ x ⇒ e₁) ≟-exp (δ x₁ ⇒ e₂) = no (λ ())
 (δ x ⇒ e₁) ≟-exp (` x₁) = no (λ ())
+(δ x ⇒ e₁) ≟-exp (! x₁) = no (λ ())
 (δ x ⇒ e₁) ≟-exp (ƛ e₂) = no (λ ())
 (δ x ⇒ e₁) ≟-exp (e₂ `· e₃) = no (λ ())
 (δ x ⇒ e₁) ≟-exp (# x₁) = no (λ ())
@@ -203,6 +241,7 @@ data Value : Exp → Set where
 
 value? : ∀ (e : Exp) → Dec (Value e)
 value? (` x) = no λ ()
+value? (! x) = no λ ()
 value? (ƛ e) = yes V-ƛ
 value? (e `· e₁) = no (λ ())
 value? (# x) = yes V-#
@@ -212,7 +251,8 @@ value? (δ x ⇒ e) = no (λ ())
 
 data Normal : Exp → Set where
   N-` : ∀ {x} → Normal (` x)
-  N-ƛ : ∀ {x e} → Normal e → Normal (ƛ e)
+  N-! : ∀ {x} → Normal (! x)
+  N-ƛ : ∀ {e} → Normal e → Normal (ƛ e)
   N-· : ∀ {e₁ e₂} → Normal e₁ → Normal e₂ → Normal (e₁ `· e₂)
   N-# : ∀ {n} → Normal (# n)
   N-+ : ∀ {e₁ e₂} → Normal e₁ → Normal e₂ → Normal (e₁ `+ e₂)
@@ -226,6 +266,7 @@ data Filter : Exp → Set where
 
 filter? : ∀ (e : Exp) → Dec (Filter e)
 filter? (` x) = no λ ()
+filter? (! x) = no λ ()
 filter? (ƛ e) = no λ ()
 filter? (e `· e₁) = no λ ()
 filter? (# x) = no λ ()
@@ -237,11 +278,12 @@ data PatVal : Pat → Set where
   PV-# : ∀ {n}
     → PatVal (# n)
 
-  PV-ƛ : ∀ {x e}
+  PV-ƛ : ∀ {e}
     → PatVal (ƛ e)
 
 strip : Exp → Exp
 strip (` x) = ` x
+strip (! x) = ! x
 strip (ƛ e) = ƛ (strip e)
 strip (e₁ `· e₂) = (strip e₁) `· (strip e₂)
 strip (# n) = # n
@@ -251,6 +293,7 @@ strip (δ x ⇒ L) = strip L
 
 strip-normal : ∀ (e : Exp) → Normal (strip e)
 strip-normal (` x) = N-`
+strip-normal (! x) = N-!
 strip-normal (ƛ e) = N-ƛ (strip-normal e)
 strip-normal (e₁ `· e₂) = N-· (strip-normal e₁) (strip-normal e₂)
 strip-normal (# x) = N-#
@@ -260,6 +303,7 @@ strip-normal (δ x ⇒ e) = strip-normal e
 
 patternize : Exp → Pat
 patternize (` x) = ` x
+patternize (! x) = ! x
 patternize (ƛ L) = ƛ L
 patternize (L `· M) = (patternize L) `· (patternize M)
 patternize (# n) = # n
@@ -267,28 +311,67 @@ patternize (L `+ M) = (patternize L) `+ (patternize M)
 patternize (φ x ⇒ L) = patternize L
 patternize (δ x ⇒ L) = patternize L
 
-_[_:=_] : Exp → ℕ → Exp → Exp
-_⟨_:=_⟩ : Pat → ℕ → Exp → Pat
+[_↦_]_ : ℕ → String → Exp → Exp
+[ k ↦ x ] (` i) with (i Data.Nat.≟ k)
+... | yes _ = ! x
+... | no  _ = ` i
+[ k ↦ x ] (! y) = ! y
+[ k ↦ x ] (ƛ e) = ƛ [ (ℕ.suc k) ↦ x ] e
+[ k ↦ x ] (eₗ `· eᵣ) = ([ k ↦ x ] eₗ) `· ([ k ↦ x ] eᵣ)
+[ k ↦ x ] (# n) = # n
+[ k ↦ x ] (eₗ `+ eᵣ) = ([ k ↦ x ] eₗ) `+ ([ k ↦ x ] eᵣ)
+[ k ↦ x ] (φ pag ⇒ e) = φ pag ⇒ [ k ↦ x ] e
+[ k ↦ x ] (δ agl ⇒ e) = δ agl ⇒ [ k ↦ x ] e
+
+[_↤_]_ : ℕ → String → Exp → Exp
+[ k ↤ x ] (` i) = ` i
+[ k ↤ x ] (! y) with (x Data.String.≟ y)
+... | yes _ = ` k
+... | no  _ = ! y
+[ k ↤ x ] (ƛ e) = ƛ ([ (k + 1) ↤ x ] e)
+[ k ↤ x ] (eₗ `· eᵣ) = ([ k ↤ x ] eₗ) `· ([ k ↤ x ] eᵣ)
+[ k ↤ x ] (# n) = # n
+[ k ↤ x ] (eₗ `+ eᵣ) = ([ k ↤ x ] eₗ) `+ ([ k ↤ x ] eᵣ)
+[ k ↤ x ] (φ pag ⇒ e) = φ pag ⇒ [ k ↤ x ] e
+[ k ↤ x ] (δ agl ⇒ e) = δ agl ⇒ [ k ↤ x ] e
+
+_[_:=_] : Exp → String → Exp → Exp
+_⟨_:=_⟩ : Pat → String → Exp → Pat
 
 $e ⟨ _ := _ ⟩ = $e
 $v ⟨ _ := _ ⟩ = $v
-(` x) ⟨ y := v ⟩ with (x Data.Nat.≟ y)
+(` i) ⟨ _ := _ ⟩ = (` i)
+(! x) ⟨ y := v ⟩ with (x Data.String.≟ y)
 ... | yes refl = patternize v
-... | no x≢y = (` x)
-(ƛ e) ⟨ y := v ⟩ = ƛ (e [ (ℕ.suc y) := v ])
+... | no  _    = (! x)
+(ƛ e) ⟨ y := v ⟩      = ƛ (e [ y := v ])
 (p₁ `· p₂) ⟨ x := v ⟩ = (p₁ ⟨ x := v ⟩) `· (p₂ ⟨ x := v ⟩)
-(# n) ⟨ _ := _ ⟩ = # n
+(# n) ⟨ _ := _ ⟩      = # n
 (p₁ `+ p₂) ⟨ x := v ⟩ = (p₁ ⟨ x := v ⟩) `+ (p₂ ⟨ x := v ⟩)
 
-(` x) [ y := v ] with (x Data.Nat.≟ y)
-... | yes refl = v
-... | no ¬x≡y  = (` x)
-(ƛ e) [ x := v ] = ƛ (e [ (ℕ.suc x) := v ])
+(` i)      [ y := v ] = (` i)
+(! x)      [ y := v ] with (x Data.String.≟ y)
+...                   | yes refl = v
+...                   | no  _    = (! x)
+(ƛ e)      [ x := v ] = ƛ (e [ x := v ])
 (e₁ `· e₂) [ x := v ] = (e₁ [ x := v ]) `· (e₂ [ x := v ])
-(# n) [ x := v ] = # n
+(# n)      [ x := v ] = # n
 (e₁ `+ e₂) [ x := v ] = (e₁ [ x := v ]) `+ (e₂ [ x := v ])
-(φ pag ⇒ e) [ x := v ] = φ pag ⇒ e [ x := v ]
-(δ agl ⇒ e) [ x := v ] = δ agl ⇒ e [ x := v ]
+(φ f ⇒ e) [ x := v ] = φ f ⇒ e [ x := v ]
+(δ r ⇒ e) [ x := v ] = δ r ⇒ e [ x := v ]
+
+fv : Exp → List String
+fv (` x) = []
+fv (! x) = x ∷ []
+fv (ƛ e) = fv e
+fv (eₗ `· eᵣ) = (fv eₗ) ++ (fv eᵣ)
+fv (# x) = []
+fv (eₗ `+ eᵣ) = (fv eₗ) ++ (fv eᵣ)
+fv (φ f ⇒ e) = fv e
+fv (δ r ⇒ e) = fv e
+
+_is-fresh-in_ : String → Exp → Set
+x is-fresh-in t = ¬ (x ∈ fv t)
 
 infix 4 _matches_
 
@@ -318,12 +401,14 @@ data _matches_ : Pat → Exp → Set where
     → (# n) matches (# n)
 
 _matches?_ : (p : Pat) → (e : Exp) → Dec (p matches e)
-$e matches? e = yes M-E
+$e matches? e         = yes M-E
 $v matches? e with (value? e)
 $v matches? e | yes V = yes (M-V V)
 $v matches? e | no ¬V = no λ { (M-V V) → ¬V V }
 (` x) matches? e = no λ ()
+(! x) matches? e = no λ ()
 (ƛ x) matches? (` x₁) = no λ ()
+(ƛ x) matches? (! x₁) = no λ ()
 (ƛ x) matches? (ƛ e) with ((strip x) ≟-exp (strip e))
 ... | yes pₛ≡eₛ = yes (M-ƛ pₛ≡eₛ)
 ... | no ¬pₛ≡eₛ = no λ { (M-ƛ pₛ≡eₛ) → ¬pₛ≡eₛ pₛ≡eₛ }
@@ -333,6 +418,7 @@ $v matches? e | no ¬V = no λ { (M-V V) → ¬V V }
 (ƛ x) matches? (φ x₁ ⇒ e) = no λ ()
 (ƛ x) matches? (δ x₁ ⇒ e) = no λ ()
 (p₁ `· p₂) matches? (` x) = no λ ()
+(p₁ `· p₂) matches? (! x) = no λ ()
 (p₁ `· p₂) matches? (ƛ e) = no λ ()
 (p₁ `· p₂) matches? (e₁ `· e₂) with (p₁ matches? e₁) ×-dec (p₂ matches? e₂)
 ... | yes (matches₁ , matches₂) = yes (M-· matches₁ matches₂)
@@ -342,6 +428,7 @@ $v matches? e | no ¬V = no λ { (M-V V) → ¬V V }
 (p₁ `· p₂) matches? (φ x ⇒ e) = no λ ()
 (p₁ `· p₂) matches? (δ x ⇒ e) = no λ ()
 (# x) matches? (` x₁) = no λ ()
+(# x) matches? (! x₁) = no λ ()
 (# x) matches? (ƛ e) = no λ ()
 (# x) matches? (e `· e₁) = no λ ()
 (# x) matches? (# y) with (x Data.Nat.≟ y)
@@ -351,6 +438,7 @@ $v matches? e | no ¬V = no λ { (M-V V) → ¬V V }
 (# x) matches? (φ x₁ ⇒ e) = no λ ()
 (# x) matches? (δ x₁ ⇒ e) = no λ ()
 (p₁ `+ p₂) matches? (` x) = no λ ()
+(p₁ `+ p₂) matches? (! x) = no λ ()
 (p₁ `+ p₂) matches? (ƛ e) = no λ ()
 (p₁ `+ p₂) matches? (e `· e₁) = no λ ()
 (p₁ `+ p₂) matches? (# x) = no λ ()
@@ -363,9 +451,10 @@ $v matches? e | no ¬V = no λ { (M-V V) → ¬V V }
 infix 0 _—→_
 
 data _—→_ : Exp → Exp → Set where
-  β-· : ∀ {vᵣ eₓ}
+  β-· : ∀ {vᵣ eₓ x}
     → Value vᵣ
-    → (ƛ eₓ) `· vᵣ —→ (eₓ [ 0 := vᵣ ])
+    → x is-fresh-in eₓ
+    → (ƛ eₓ) `· vᵣ —→ (([ 0 ↦ x ] eₓ) [ x := vᵣ ])
 
   β-+ : ∀ {nₗ nᵣ}
     → (# nₗ) `+ (# nᵣ) —→ (# (nₗ Data.Nat.+ nᵣ))
@@ -613,42 +702,21 @@ data Typ : Set where
   _⇒_ : Typ → Typ → Typ
   `ℕ   : Typ
 
-infixl 5 _⸴_
+infixl 5 _,_∶_
 
 data TypCtx : Set where
-  ∅   : TypCtx
-  _⸴_ : TypCtx → Typ → TypCtx
-
-length : TypCtx → ℕ
-length ∅ = 0
-length (Γ ⸴ x) = ℕ.suc (length Γ)
-
-lookup : ∀ {Γ : TypCtx} → {n : ℕ} → (p : n < length Γ) → Typ
-lookup {_ ⸴ A} {ℕ.zero} (s≤s z≤n) = A
-lookup {Γ ⸴ A} {ℕ.suc n} (s≤s p) = lookup p
-
-update : ∀ {Γ : TypCtx} → {n : ℕ} → (p : n < length Γ) → Typ → TypCtx
-update {Γ ⸴ τ₀} {ℕ.zero} (s≤s z≤n) τ₁ = Γ ⸴ τ₁
-update {Γ ⸴ _} {ℕ.suc n} (s≤s p) τ₁ = update p τ₁
-
-_[_]<-_ : TypCtx → ℕ → Typ → TypCtx
-Γ [ n ]<- τ with (n Data.Nat.<? length Γ)
-... | yes p = update p τ
-... | no ¬p = Γ
+  ∅     : TypCtx
+  _,_∶_ : TypCtx → String → Typ → TypCtx
 
 infix 4 _∋_∶_
 
-data _∋_∶_ : TypCtx → Id → Typ → Set where
-  ∋-Z : ∀ {Γ τ}
-    → Γ ⸴ τ ∋ 0 ∶ τ
+data _∋_∶_ : TypCtx → String → Typ → Set where
+  ∋-Z : ∀ {Γ x τ}
+    → Γ , x ∶ τ ∋ x ∶ τ
 
-  ∋-S : ∀ {Γ x τ₁ τ₂}
-    → Γ ∋ x ∶ τ₁
-    → Γ ⸴ τ₂ ∋ (ℕ.suc x) ∶ τ₁
-
-count : ∀ {Γ} → {n : ℕ} → (p : n < length Γ) → Γ ∋ n ∶ lookup p
-count {_ ⸴ _} {ℕ.zero} (s≤s z≤n) = ∋-Z
-count {Γ ⸴ _} {ℕ.suc n} (s≤s p) = ∋-S (count p)
+  ∋-S : ∀ {Γ x₁ x₂ τ₁ τ₂}
+    → Γ ∋ x₁ ∶ τ₁
+    → Γ , x₂ ∶ τ₂ ∋ x₁ ∶ τ₁
 
 infix 4 _⊢_∶_
 infix 5 _⊢_∻_
@@ -657,13 +725,14 @@ data _⊢_∶_ : TypCtx → Exp → Typ → Set
 data _⊢_∻_ : TypCtx → Pat → Typ → Set
 
 data _⊢_∶_ where
-  ⊢-` : ∀ {Γ x τ}
+  ⊢-! : ∀ {Γ x τ}
     → Γ ∋ x ∶ τ
-    → Γ ⊢ ` x ∶ τ
+    → Γ ⊢ ! x ∶ τ
 
-  ⊢-ƛ : ∀ {Γ e τₓ τₑ}
-    → Γ ⸴ τₓ ⊢ e ∶ τₑ
-    → Γ ⊢ (ƛ e) ∶ (τₓ ⇒ τₑ)
+  ⊢-ƛ : ∀ {Γ e τₓ τₑ L}
+    → (∀ x → ¬ (x ∈ L) →
+       Γ , x ∶ τₓ ⊢ ([ 0 ↦ x ] e) ∶ τₑ)
+    → Γ ⊢ ƛ e ∶ (τₓ ⇒ τₑ)
 
   ⊢-· : ∀ {Γ e₁ e₂ τ₁ τ₂}
     → Γ ⊢ e₁ ∶ (τ₂ ⇒ τ₁)
@@ -694,12 +763,12 @@ data _⊢_∻_ where
   ⊢-V : ∀ {Γ τ}
     → Γ ⊢ $v ∻ τ
 
-  ⊢-` : ∀ {Γ x τ}
+  ⊢-! : ∀ {Γ x τ}
     → Γ ∋ x ∶ τ
-    → Γ ⊢ ` x ∻ τ
+    → Γ ⊢ ! x ∻ τ
 
-  ⊢-ƛ : ∀ {Γ e τₓ τₑ}
-    → Γ ⸴ τₓ ⊢ e ∶ τₑ
+  ⊢-ƛ : ∀ {Γ x e τₓ τₑ}
+    → Γ , x ∶ τₓ ⊢ ([ 0 ↦ x ] e) ∶ τₑ
     → Γ ⊢ ƛ e ∻ (τₓ ⇒ τₑ)
 
   ⊢-· : ∀ {Γ e₁ e₂ τ₁ τ₂}
@@ -715,44 +784,57 @@ data _⊢_∻_ where
     → Γ ⊢ e₂ ∻ `ℕ
     → Γ ⊢ (e₁ `+ e₂) ∻ `ℕ
 
-ext : ∀ {Γ Δ}
-  → (∀ {x A}   →     Γ ∋ x ∶ A →     Δ ∋ x ∶ A)
-  → (∀ {x A B} → Γ ⸴ B ∋ x ∶ A → Δ ⸴ B ∋ x ∶ A)
-ext ρ ∋-Z       =  ∋-Z
-ext ρ (∋-S ∋x)  =  ∋-S (ρ ∋x)
+-- ext : ∀ {Γ Δ}
+--   → (∀ {x A}   →     Γ ∋ x ∶ A →     Δ ∋ x ∶ A)
+--   → (∀ {x A B} → Γ , B ∋ x ∶ A → Δ ⸴ B ∋ x ∶ A)
+-- ext ρ ∋-Z       =  ∋-Z
+-- ext ρ (∋-S ∋x)  =  ∋-S (ρ ∋x)
 
-rename-exp : ∀ {Γ Δ}
-  → (∀ {x A} → Γ ∋ x ∶ A → Δ ∋ x ∶ A)
-  → (∀ {e A} → Γ ⊢ e ∶ A → Δ ⊢ e ∶ A)
-rename-pat : ∀ {Γ Δ}
-  → (∀ {x A} → Γ ∋ x ∶ A → Δ ∋ x ∶ A)
-  → (∀ {e A} → Γ ⊢ e ∻ A → Δ ⊢ e ∻ A)
+-- rename-exp : ∀ {Γ Δ}
+--   → (∀ {x A} → Γ ∋ x ∶ A → Δ ∋ x ∶ A)
+--   → (∀ {e A} → Γ ⊢ e ∶ A → Δ ⊢ e ∶ A)
+-- rename-pat : ∀ {Γ Δ}
+--   → (∀ {x A} → Γ ∋ x ∶ A → Δ ∋ x ∶ A)
+--   → (∀ {e A} → Γ ⊢ e ∻ A → Δ ⊢ e ∻ A)
 
-rename-exp ρ (⊢-` ∋-x)   = ⊢-` (ρ ∋-x)
-rename-exp ρ (⊢-ƛ ⊢-N)   = ⊢-ƛ (rename-exp (ext ρ) ⊢-N)
-rename-exp ρ (⊢-· e₁ e₂) = ⊢-· (rename-exp ρ e₁) (rename-exp ρ e₂)
-rename-exp ρ (⊢-+ e₁ e₂) = ⊢-+ (rename-exp ρ e₁) (rename-exp ρ e₂)
-rename-exp ρ ⊢-#         = ⊢-#
-rename-exp ρ (⊢-φ p e)     = ⊢-φ (rename-pat ρ p) (rename-exp ρ e)
-rename-exp ρ (⊢-δ Γ-⊢)   = ⊢-δ (rename-exp ρ Γ-⊢)
+-- rename-exp ρ (⊢-` ∋-x)   = ⊢-` (ρ ∋-x)
+-- rename-exp ρ (⊢-ƛ ⊢-N)   = ⊢-ƛ (rename-exp (ext ρ) ⊢-N)
+-- rename-exp ρ (⊢-· e₁ e₂) = ⊢-· (rename-exp ρ e₁) (rename-exp ρ e₂)
+-- rename-exp ρ (⊢-+ e₁ e₂) = ⊢-+ (rename-exp ρ e₁) (rename-exp ρ e₂)
+-- rename-exp ρ ⊢-#         = ⊢-#
+-- rename-exp ρ (⊢-φ p e)     = ⊢-φ (rename-pat ρ p) (rename-exp ρ e)
+-- rename-exp ρ (⊢-δ Γ-⊢)   = ⊢-δ (rename-exp ρ Γ-⊢)
 
-rename-pat ρ ⊢-E         = ⊢-E
-rename-pat ρ ⊢-V         = ⊢-V
-rename-pat ρ (⊢-` ∋-x)   = ⊢-` (ρ ∋-x)
-rename-pat ρ (⊢-ƛ x⊢e)   = ⊢-ƛ (rename-exp (ext ρ) x⊢e)
-rename-pat ρ (⊢-· e₁ e₂) = ⊢-· (rename-pat ρ e₁) (rename-pat ρ e₂)
-rename-pat ρ ⊢-#         = ⊢-#
-rename-pat ρ (⊢-+ e₁ e₂) = ⊢-+ (rename-pat ρ e₁) (rename-pat ρ e₂)
+-- rename-pat ρ ⊢-E         = ⊢-E
+-- rename-pat ρ ⊢-V         = ⊢-V
+-- rename-pat ρ (⊢-` ∋-x)   = ⊢-` (ρ ∋-x)
+-- rename-pat ρ (⊢-ƛ x⊢e)   = ⊢-ƛ (rename-exp (ext ρ) x⊢e)
+-- rename-pat ρ (⊢-· e₁ e₂) = ⊢-· (rename-pat ρ e₁) (rename-pat ρ e₂)
+-- rename-pat ρ ⊢-#         = ⊢-#
+-- rename-pat ρ (⊢-+ e₁ e₂) = ⊢-+ (rename-pat ρ e₁) (rename-pat ρ e₂)
 
-∋-functional : ∀ {Γ x τ₁ τ₂} → (Γ ∋ x ∶ τ₁) → (Γ ∋ x ∶ τ₂) → τ₁ ≡ τ₂
-∋-functional ∋-Z ∋-Z = refl
-∋-functional (∋-S ∋₁) (∋-S ∋₂) = ∋-functional ∋₁ ∋₂
+-- ∋-functional : ∀ {Γ x τ₁ τ₂} → (Γ ∋ x ∶ τ₁) → (Γ ∋ x ∶ τ₂) → τ₁ ≡ τ₂
+-- ∋-functional ∋-Z ∋-Z = refl
+-- ∋-functional (∋-S ∋₁) (∋-S ∋₂) = ∋-functional ∋₁ ∋₂
+
+strip-var-open : ∀ (e : Exp) → (k : ℕ) → (x : String)
+  → strip ([ k ↦ x ] e) ≡ [ k ↦ x ] (strip e)
+strip-var-open (` i) k x with (i Data.Nat.≟ k)
+... | yes refl = refl
+... | no  _    = refl
+strip-var-open (! y) k x = refl
+strip-var-open (ƛ e) k x = cong ƛ_ (strip-var-open e (ℕ.suc k) x)
+strip-var-open (eₗ `· eᵣ) k x = cong₂ _`·_ (strip-var-open eₗ k x) (strip-var-open eᵣ k x)
+strip-var-open (# x₁) k x = refl
+strip-var-open (eₗ `+ eᵣ) k x = cong₂ _`+_ (strip-var-open eₗ k x) (strip-var-open eᵣ k x)
+strip-var-open (φ f ⇒ e) k x = strip-var-open e k x
+strip-var-open (δ r ⇒ e) k x = strip-var-open e k x
 
 strip-preserve : ∀ {Γ e τ}
   → Γ ⊢ e ∶ τ
   → Γ ⊢ (strip e) ∶ τ
-strip-preserve (⊢-` ∋-x) = ⊢-` ∋-x
-strip-preserve (⊢-ƛ x⊢e) = ⊢-ƛ (strip-preserve x⊢e)
+strip-preserve (⊢-! ∋-x) = ⊢-! ∋-x
+strip-preserve (⊢-ƛ x⊢e) = ⊢-ƛ {!!}
 strip-preserve (⊢-· ⊢₁ ⊢₂) = ⊢-· (strip-preserve ⊢₁) (strip-preserve ⊢₂)
 strip-preserve (⊢-+ ⊢₁ ⊢₂) = ⊢-+ (strip-preserve ⊢₁) (strip-preserve ⊢₂)
 strip-preserve ⊢-# = ⊢-#
@@ -773,22 +855,22 @@ instr-preserve (⊢-+ ⊢ₗ ⊢ᵣ) (I-+-⊥ x Iₗ Iᵣ) = ⊢-+ (instr-preser
 instr-preserve (⊢-φ ⊢ₚ ⊢ₑ) (I-Φ I₀ I₁) = ⊢-φ ⊢ₚ (instr-preserve (instr-preserve ⊢ₑ I₀) I₁)
 instr-preserve (⊢-δ ⊢) (I-Δ I) = ⊢-δ (instr-preserve ⊢ I)
 
-weaken : ∀ {Γ e A}
-  → ∅ ⊢ e ∶ A
-  → Γ ⊢ e ∶ A
-weaken {Γ} ⊢e = rename-exp ρ ⊢e
-  where
-  ρ : ∀ {z C}
-    → ∅ ∋ z ∶ C
-    → Γ ∋ z ∶ C
-  ρ ()
+-- weaken : ∀ {Γ e A}
+--   → ∅ ⊢ e ∶ A
+--   → Γ ⊢ e ∶ A
+-- weaken {Γ} ⊢e = rename-exp ρ ⊢e
+--   where
+--   ρ : ∀ {z C}
+--     → ∅ ∋ z ∶ C
+--     → Γ ∋ z ∶ C
+--   ρ ()
 
--- subst : ∀ {Γ v e τᵥ τₑ}
+-- subst : ∀ {Γ v e x τᵥ τₑ}
 --   → ∅ ⊢ v ∶ τᵥ
 --   → Γ ⸴ τᵥ ⊢ e ∶ τₑ
---   → Γ ⊢ (e [ 0 := v ]) ∶ τₑ
--- subst {e = ` ℕ.zero} ⊢ᵥ (⊢-` ∋-Z) = {!!}
--- subst {e = ` (ℕ.suc x)} ⊢ᵥ (⊢-` (∋-S {x = y} ∋)) = ⊥-elim {!!}
+--   → Γ ⊢ (e [ x := v ]) ∶ τₑ
+-- subst {e = ` ℕ.zero} ⊢ᵥ (⊢-! ∋-Z) = {!!}
+-- subst {e = ` (ℕ.suc x)} ⊢ᵥ (⊢-! (∋-S {x = y} ∋)) = ⊥-elim {!!}
 -- subst ⊢ᵥ (⊢-ƛ ⊢ₑ) = {!!}
 -- subst ⊢ᵥ (⊢-· ⊢ₑ ⊢ₑ₁) = {!!}
 -- subst ⊢ᵥ (⊢-+ ⊢ₑ ⊢ₑ₁) = {!!}
@@ -800,7 +882,7 @@ weaken {Γ} ⊢e = rename-exp ρ ⊢e
   → Γ ⊢ e ∶ τ
   → e —→ e′
   → Γ ⊢ e′ ∶ τ
-—→-preserve (⊢-· ⊢ₗ ⊢ᵣ) (β-· Vᵣ) = {!!}
+—→-preserve (⊢-· ⊢ₗ ⊢ᵣ) (β-· Vᵣ x) = {!!}
 —→-preserve (⊢-+ ⊢ ⊢₁) T = {!!}
 —→-preserve (⊢-φ x ⊢) T = {!!}
 
